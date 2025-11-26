@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tom the AI</title>
+<style>
+:root {
+  --bg: #eef1f6;
+  --card: #ffffff;
+  --text: #111;
+  --muted: #6c7a92;
+  --accent: #4e7dff;
+  --user: #dce7ff;
+  --ai: #f2f4f7;
+}
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --card: #161b22;
+  --text: #e6eef8;
+  --muted: #9fb0c9;
+  --accent: #4ea1ff;
+  --user: #0b4a87;
+  --ai: #111b27;
+}
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+}
+.container {
+  max-width: 880px;
+  margin: 20px auto;
+  padding: 16px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.logo {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #4e7dff, #8b5cff);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 28px;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+}
+h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+label { color: var(--muted); font-size: 13px; }
+#chat {
+  background: var(--card);
+  border-radius: 14px;
+  height: 65vh;
+  overflow-y: auto;
+  padding: 16px;
+  margin-top: 8px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.09);
+}
+.msg { display: flex; margin: 10px 0; }
+.bubble {
+  max-width: 75%;
+  padding: 13px 16px;
+  border-radius: 14px;
+  line-height: 1.4;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+}
+.user { margin-left: auto; background: var(--user); border-bottom-right-radius: 6px; }
+.ai { margin-right: auto; background: var(--ai); border-bottom-left-radius: 6px; }
+.inputRow { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+input[type="text"] {
+  flex: 1;
+  padding: 13px;
+  border-radius: 12px;
+  border: 1px solid #d0d7de;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+}
+button {
+  padding: 12px 15px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  font-size: 15px;
+}
+button#clearBtn { background:#ff6666; }
+.typing .dot {
+  height: 7px;
+  width: 7px;
+  background: var(--muted);
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+  opacity: 0;
+  animation: blink 1.2s infinite;
+}
+.typing .dot:nth-child(2){ animation-delay: .15s }
+.typing .dot:nth-child(3){ animation-delay: .3s }
+@keyframes blink { 0% { opacity:0 } 40% { opacity:1 } 80% { opacity:0 } 100% { opacity:0 } }
+.error { color: #ff6666; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">T</div>
+    <div>
+      <h1>Tom the AI</h1>
+      <div class="muted">Chat with Tom anytime</div>
+    </div>
+    <div class="controls">
+      <label>Dark</label>
+      <input id="darkToggle" type="checkbox" />
+    </div>
+  </header>
+
+  <div id="chat"></div>
+
+  <div class="inputRow">
+    <input id="msg" type="text" placeholder="Ask Tom something..." />
+    <button id="sendBtn">Send</button>
+    <button id="clearBtn">Clear Chat</button>
+  </div>
+
+  <div id="error" class="error"></div>
+</div>
+
+<script>
+// ===== Back4App setup =====
+const APP_ID = "aZG4Su7oUextVdALeYgYE14Y7Yc5PrLEcUSzwXJp";
+const REST_KEY = "6X6kPwMLSjaVADUiwPjXMinr5PdHPJ1exWVzlWbf";
+const BACKEND_URL = "https://parseapi.back4app.com/functions/askAI";
+
+// ===== UI elements =====
+const chatDiv = document.getElementById("chat");
+const msgInput = document.getElementById("msg");
+const sendBtn = document.getElementById("sendBtn");
+const clearBtn = document.getElementById("clearBtn");
+const errorDiv = document.getElementById("error");
+const darkToggle = document.getElementById("darkToggle");
+
+// ===== Theme =====
+const savedTheme = localStorage.getItem("theme") || "light";
+document.documentElement.setAttribute("data-theme", savedTheme);
+darkToggle.checked = savedTheme === "dark";
+darkToggle.onclick = () => {
+  const theme = darkToggle.checked ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("theme", theme);
+};
+
+// ===== Local user key =====
+const userKey = localStorage.getItem("userKey") || ("u_" + Math.random().toString(36).slice(2,9));
+localStorage.setItem("userKey", userKey);
+
+// ===== Load chat history =====
+function loadLocalHistory() {
+  const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
+  chatDiv.innerHTML = "";
+  history.forEach(m => addMessageToUI(m.from, m.text, false));
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+// ===== Add message to UI =====
+function addMessageToUI(from, text, save=true){
+  const m = document.createElement("div");
+  m.className = "msg";
+  const b = document.createElement("div");
+  b.className = "bubble " + (from === "user" ? "user" : "ai");
+  b.innerHTML = text;
+  m.appendChild(b);
+  chatDiv.appendChild(m);
+
+  if (save){
+    const h = JSON.parse(localStorage.getItem("chat_history") || "[]");
+    h.push({from, text, time: Date.now()});
+    localStorage.setItem("chat_history", JSON.stringify(h));
+  }
+
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+// ===== Typing animation =====
+function showTyping(){
+  const m = document.createElement("div");
+  m.className = "msg";
+  m.id = "typingRow";
+  m.innerHTML = `<div class="bubble ai"><strong>Tom is typing</strong>
+    <span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+  </div>`;
+  chatDiv.appendChild(m);
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+function hideTyping(){
+  const t = document.getElementById("typingRow");
+  if(t) t.remove();
+}
+
+// ===== Send message =====
+sendBtn.onclick = sendMessage;
+msgInput.addEventListener("keydown", e => { if(e.key==="Enter") sendMessage(); });
+
+async function sendMessage(){
+  const text = msgInput.value.trim();
+  if(!text) return;
+
+  errorDiv.textContent = "";
+  addMessageToUI("user", text);
+  msgInput.value = "";
+  showTyping();
+
+  try {
+    const res = await fetch(BACKEND_URL, {
+      method: "POST",
+      headers: {
+        "X-Parse-Application-Id": APP_ID,
+        "X-Parse-REST-API-Key": REST_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ prompt: text, userKey })
+    });
+
+    if(!res.ok) throw new Error(`Server error: ${res.status}`);
+
+    const data = await res.json();
+    hideTyping();
+
+    const reply = data.result?.choices?.[0]?.message?.content || "Tom didn't understand.";
+    addMessageToUI("ai", reply);
+
+  } catch(err){
+    hideTyping();
+    errorDiv.textContent = "Error: " + err.message;
+  }
+}
+
+// ===== Clear chat =====
+clearBtn.onclick = () => {
+  if(confirm("Are you sure you want to clear the chat?")) {
+    localStorage.removeItem("chat_history");
+    chatDiv.innerHTML = "";
+  }
+};
+
+loadLocalHistory();
+</script>
+</body>
+</html>
