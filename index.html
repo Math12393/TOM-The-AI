@@ -143,13 +143,12 @@ button#clearAllBtn { background:#ff5555; }
     </div>
   </header>
 
-  <!-- ===== Persona Selector ===== -->
   <div style="margin-bottom:10px;">
     <label for="persona">Select Tom's type:</label>
     <select id="persona">
-      <option value="human">Human Tom (Tom with personality)</option>
-      <option value="coder">Tom the Coder (Coding degrees)</option>
-      <option value="researcher">Tom the Data Access and Researcher (Internet access)</option>
+      <option value="human">Human Tom</option>
+      <option value="coder">Tom the Coder</option>
+      <option value="researcher">Tom the Researcher</option>
       <option value="image">Tom the Image AI (Coming Soon)</option>
     </select>
   </div>
@@ -167,12 +166,8 @@ button#clearAllBtn { background:#ff5555; }
 </div>
 
 <script>
-// ===== Back4App setup =====
-const APP_ID = "aZG4Su7oUextVdALeYgYE14Y7Yc5PrLEcUSzwXJp";
-const REST_KEY = "6X6kPwMLSjaVADUiwPjXMinr5PdHPJ1exWVzlWbf";
-const BACKEND_URL = "https://parseapi.back4app.com/functions/askAI";
-
-// ===== UI elements =====
+// ===== Settings =====
+const OPENAI_KEY = "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";
 const chatDiv = document.getElementById("chat");
 const msgInput = document.getElementById("msg");
 const sendBtn = document.getElementById("sendBtn");
@@ -181,6 +176,9 @@ const clearAllBtn = document.getElementById("clearAllBtn");
 const errorDiv = document.getElementById("error");
 const darkToggle = document.getElementById("darkToggle");
 const personaSelect = document.getElementById("persona");
+
+const userKey = localStorage.getItem("userKey") || ("u_" + Math.random().toString(36).slice(2,9));
+localStorage.setItem("userKey", userKey);
 
 // ===== Theme =====
 const savedTheme = localStorage.getItem("theme") || "light";
@@ -192,10 +190,6 @@ darkToggle.onclick = () => {
   localStorage.setItem("theme", theme);
 };
 
-// ===== Local user key =====
-const userKey = localStorage.getItem("userKey") || ("u_" + Math.random().toString(36).slice(2,9));
-localStorage.setItem("userKey", userKey);
-
 // ===== Load chat history =====
 function loadLocalHistory() {
   const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
@@ -206,22 +200,21 @@ function loadLocalHistory() {
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
-// ===== Add message to UI =====
+// ===== Add message =====
 function addMessageToUI(from, text, save=true, persona=personaSelect.value){
   const m = document.createElement("div");
   m.className = "msg";
   const b = document.createElement("div");
   b.className = "bubble " + (from === "user" ? "user" : "ai");
-  b.innerHTML = (from === "ai" ? `<strong>${getPersonaName(persona)}:</strong> ` : "") + text;
+  b.innerHTML = (from==="ai"?`<strong>${getPersonaName(persona)}:</strong> `:"")+text;
   m.appendChild(b);
   chatDiv.appendChild(m);
 
-  if (save){
-    const h = JSON.parse(localStorage.getItem("chat_history") || "[]");
-    h.push({from, text, time: Date.now(), persona});
-    localStorage.setItem("chat_history", JSON.stringify(h));
+  if(save){
+    const h = JSON.parse(localStorage.getItem("chat_history")||"[]");
+    h.push({from,text,time:Date.now(),persona});
+    localStorage.setItem("chat_history",JSON.stringify(h));
   }
-
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
@@ -235,7 +228,7 @@ function getPersonaName(persona){
   }
 }
 
-// ===== Typing animation =====
+// ===== Typing indicator =====
 function showTyping(){
   const m = document.createElement("div");
   m.className = "msg";
@@ -253,14 +246,13 @@ function hideTyping(){
 
 // ===== Send message =====
 sendBtn.onclick = sendMessage;
-msgInput.addEventListener("keydown", e => {
-  if(e.key === "Enter" && !e.shiftKey && !e.ctrlKey) sendMessage();
-  if(e.key === "Enter" && e.shiftKey && e.ctrlKey) {
-    // Shift+Ctrl for new paragraph
+msgInput.addEventListener("keydown", e=>{
+  if(e.key==="Enter" && !e.shiftKey) { sendMessage(); e.preventDefault(); }
+  if(e.key==="Enter" && e.shiftKey) {
     const start = msgInput.selectionStart;
     const end = msgInput.selectionEnd;
-    msgInput.value = msgInput.value.substring(0,start) + "\n" + msgInput.value.substring(end);
-    msgInput.selectionStart = msgInput.selectionEnd = start + 1;
+    msgInput.value = msgInput.value.substring(0,start)+"\n"+msgInput.value.substring(end);
+    msgInput.selectionStart = msgInput.selectionEnd = start+1;
     e.preventDefault();
   }
 });
@@ -268,71 +260,65 @@ msgInput.addEventListener("keydown", e => {
 async function sendMessage(){
   const text = msgInput.value.trim();
   if(!text) return;
-
   const persona = personaSelect.value;
 
-  // If image persona, just show coming soon
-  if(persona === "image"){
-    addMessageToUI("user", text);
-    showTyping();
-    setTimeout(() => {
-      hideTyping();
-      addMessageToUI("ai", "Image persona is coming soon!");
-    }, 800);
-    msgInput.value = "";
-    return;
+  if(persona==="image"){
+    addMessageToUI("user", text); showTyping();
+    setTimeout(()=>{ hideTyping(); addMessageToUI("ai","Image persona is coming soon!"); },800);
+    msgInput.value=""; return;
   }
 
-  errorDiv.textContent = "";
   addMessageToUI("user", text);
-  msgInput.value = "";
+  msgInput.value="";
   showTyping();
+  errorDiv.textContent="";
 
-  try {
-    const res = await fetch(BACKEND_URL, {
-      method: "POST",
-      headers: {
-        "X-Parse-Application-Id": APP_ID,
-        "X-Parse-REST-API-Key": REST_KEY,
-        "Content-Type": "application/json"
+  try{
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+OPENAI_KEY
       },
-      body: JSON.stringify({ prompt: text, userKey, persona })
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: `You are ${getPersonaName(persona)}. Reply helpfully.` },
+          { role: "user", content: text }
+        ],
+        temperature: 0.7,
+        max_tokens: 1200
+      })
     });
 
-    if(!res.ok) throw new Error(`Server error: ${res.status}`);
-
+    if(!res.ok) throw new Error(`OpenAI error ${res.status}`);
     const data = await res.json();
     hideTyping();
+    const reply = data.choices?.[0]?.message?.content || "Tom didn't understand.";
+    addMessageToUI("ai", reply,true,persona);
 
-    const reply = data.result?.choices?.[0]?.message?.content || "Tom didn't understand.";
-    addMessageToUI("ai", reply, true, persona);
-
-  } catch(err){
-    hideTyping();
-    errorDiv.textContent = "Error: " + err.message;
-  }
+  }catch(err){ hideTyping(); errorDiv.textContent="Error: "+err.message; }
 }
 
 // ===== Clear chat =====
-clearBtn.onclick = () => {
-  if(confirm("Are you sure you want to clear the chat?")) {
-    const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
-    const newHistory = history.filter(m => m.persona !== personaSelect.value);
-    localStorage.setItem("chat_history", JSON.stringify(newHistory));
+clearBtn.onclick = ()=>{
+  if(confirm("Are you sure you want to clear the chat?")){
+    const history = JSON.parse(localStorage.getItem("chat_history")||"[]");
+    const newHistory = history.filter(m=>m.persona!==personaSelect.value);
+    localStorage.setItem("chat_history",JSON.stringify(newHistory));
     loadLocalHistory();
   }
 };
 
-// ===== Clear all chat =====
-clearAllBtn.onclick = () => {
-  if(confirm("Are you sure you want to clear ALL chat history?")) {
+// ===== Clear all chats =====
+clearAllBtn.onclick = ()=>{
+  if(confirm("Are you sure you want to clear ALL chat history?")){
     localStorage.removeItem("chat_history");
-    chatDiv.innerHTML = "";
+    chatDiv.innerHTML="";
   }
 };
 
 personaSelect.onchange = loadLocalHistory;
-
 loadLocalHistory();
 </script>
 </body>
