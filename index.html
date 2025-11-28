@@ -94,6 +94,14 @@ input[type="text"] {
   color: var(--text);
   font-size: 15px;
 }
+select {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #d0d7de;
+  background: var(--card);
+  font-size: 14px;
+  cursor: pointer;
+}
 button {
   padding: 12px 15px;
   border-radius: 12px;
@@ -104,6 +112,7 @@ button {
   font-size: 15px;
 }
 button#clearBtn { background:#ff6666; }
+button#clearAllBtn { background:#ff5555; }
 .typing .dot {
   height: 7px;
   width: 7px;
@@ -134,12 +143,24 @@ button#clearBtn { background:#ff6666; }
     </div>
   </header>
 
+  <!-- ===== Persona Selector ===== -->
+  <div style="margin-bottom:10px;">
+    <label for="persona">Select Tom's type:</label>
+    <select id="persona">
+      <option value="human">Human Tom (Tom with personality)</option>
+      <option value="coder">Tom the Coder (Coding degrees)</option>
+      <option value="researcher">Tom the Data Access and Researcher (Internet access)</option>
+      <option value="image">Tom the Image AI (Coming Soon)</option>
+    </select>
+  </div>
+
   <div id="chat"></div>
 
   <div class="inputRow">
     <input id="msg" type="text" placeholder="Ask Tom something..." />
     <button id="sendBtn">Send</button>
     <button id="clearBtn">Clear Chat</button>
+    <button id="clearAllBtn">Clear All Chat History</button>
   </div>
 
   <div id="error" class="error"></div>
@@ -156,8 +177,10 @@ const chatDiv = document.getElementById("chat");
 const msgInput = document.getElementById("msg");
 const sendBtn = document.getElementById("sendBtn");
 const clearBtn = document.getElementById("clearBtn");
+const clearAllBtn = document.getElementById("clearAllBtn");
 const errorDiv = document.getElementById("error");
 const darkToggle = document.getElementById("darkToggle");
+const personaSelect = document.getElementById("persona");
 
 // ===== Theme =====
 const savedTheme = localStorage.getItem("theme") || "light";
@@ -177,27 +200,39 @@ localStorage.setItem("userKey", userKey);
 function loadLocalHistory() {
   const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
   chatDiv.innerHTML = "";
-  history.forEach(m => addMessageToUI(m.from, m.text, false));
+  history.forEach(m => {
+    if(m.persona === personaSelect.value) addMessageToUI(m.from, m.text, false, m.persona);
+  });
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
 // ===== Add message to UI =====
-function addMessageToUI(from, text, save=true){
+function addMessageToUI(from, text, save=true, persona=personaSelect.value){
   const m = document.createElement("div");
   m.className = "msg";
   const b = document.createElement("div");
   b.className = "bubble " + (from === "user" ? "user" : "ai");
-  b.innerHTML = text;
+  b.innerHTML = (from === "ai" ? `<strong>${getPersonaName(persona)}:</strong> ` : "") + text;
   m.appendChild(b);
   chatDiv.appendChild(m);
 
   if (save){
     const h = JSON.parse(localStorage.getItem("chat_history") || "[]");
-    h.push({from, text, time: Date.now()});
+    h.push({from, text, time: Date.now(), persona});
     localStorage.setItem("chat_history", JSON.stringify(h));
   }
 
   chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+function getPersonaName(persona){
+  switch(persona){
+    case "human": return "Human Tom";
+    case "coder": return "Tom the Coder";
+    case "researcher": return "Tom the Researcher";
+    case "image": return "Tom the Image AI";
+    default: return "Tom";
+  }
 }
 
 // ===== Typing animation =====
@@ -218,11 +253,35 @@ function hideTyping(){
 
 // ===== Send message =====
 sendBtn.onclick = sendMessage;
-msgInput.addEventListener("keydown", e => { if(e.key==="Enter") sendMessage(); });
+msgInput.addEventListener("keydown", e => {
+  if(e.key === "Enter" && !e.shiftKey && !e.ctrlKey) sendMessage();
+  if(e.key === "Enter" && e.shiftKey && e.ctrlKey) {
+    // Shift+Ctrl for new paragraph
+    const start = msgInput.selectionStart;
+    const end = msgInput.selectionEnd;
+    msgInput.value = msgInput.value.substring(0,start) + "\n" + msgInput.value.substring(end);
+    msgInput.selectionStart = msgInput.selectionEnd = start + 1;
+    e.preventDefault();
+  }
+});
 
 async function sendMessage(){
   const text = msgInput.value.trim();
   if(!text) return;
+
+  const persona = personaSelect.value;
+
+  // If image persona, just show coming soon
+  if(persona === "image"){
+    addMessageToUI("user", text);
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      addMessageToUI("ai", "Image persona is coming soon!");
+    }, 800);
+    msgInput.value = "";
+    return;
+  }
 
   errorDiv.textContent = "";
   addMessageToUI("user", text);
@@ -237,7 +296,7 @@ async function sendMessage(){
         "X-Parse-REST-API-Key": REST_KEY,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ prompt: text, userKey })
+      body: JSON.stringify({ prompt: text, userKey, persona })
     });
 
     if(!res.ok) throw new Error(`Server error: ${res.status}`);
@@ -246,7 +305,7 @@ async function sendMessage(){
     hideTyping();
 
     const reply = data.result?.choices?.[0]?.message?.content || "Tom didn't understand.";
-    addMessageToUI("ai", reply);
+    addMessageToUI("ai", reply, true, persona);
 
   } catch(err){
     hideTyping();
@@ -257,10 +316,22 @@ async function sendMessage(){
 // ===== Clear chat =====
 clearBtn.onclick = () => {
   if(confirm("Are you sure you want to clear the chat?")) {
+    const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
+    const newHistory = history.filter(m => m.persona !== personaSelect.value);
+    localStorage.setItem("chat_history", JSON.stringify(newHistory));
+    loadLocalHistory();
+  }
+};
+
+// ===== Clear all chat =====
+clearAllBtn.onclick = () => {
+  if(confirm("Are you sure you want to clear ALL chat history?")) {
     localStorage.removeItem("chat_history");
     chatDiv.innerHTML = "";
   }
 };
+
+personaSelect.onchange = loadLocalHistory;
 
 loadLocalHistory();
 </script>
