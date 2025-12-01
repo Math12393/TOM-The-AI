@@ -34,20 +34,6 @@ h1 {margin:0;font-size:22px; display:inline;}
 .controls {margin-left:auto;display:flex;align-items:center;gap:10px;}
 label { color: var(--muted); font-size: 13px; }
 
-/* Fixer button */
-#fixerBtn {
-  background: #ff5555;
-  color: white;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 10px;
-  font-size: 14px;
-  cursor: pointer;
-  margin-left: 12px;
-  transition: 0.15s;
-}
-#fixerBtn:hover { background: #ff3333; }
-
 #chat { background: var(--card); border-radius: 14px; height: 65vh; overflow-y: auto; padding: 16px; margin-top: 8px; box-shadow: 0 8px 22px rgba(0,0,0,0.09);}
 .msg { display:flex;margin:10px 0; }
 .bubble { max-width:75%; padding:13px 16px; border-radius:14px; line-height:1.4; box-shadow:0 3px 8px rgba(0,0,0,0.06);}
@@ -67,6 +53,12 @@ button#clearAllBtn { background:#ff5555; }
 
 .error { color: #ff6666; margin-top:8px;}
 .codeBox { background:#0f0f0f; color:var(--code); padding:10px; border-radius:8px; font-family: monospace; white-space: pre-wrap; margin-top:6px; }
+
+/* Galaxy background option */
+body.galaxy {
+  background: url('https://images.unsplash.com/photo-1444703686981-a3abbc4d4fe3?auto=format&fit=crop&w=1920&q=80') no-repeat center center fixed;
+  background-size: cover;
+}
 </style>
 </head>
 <body>
@@ -76,16 +68,16 @@ button#clearAllBtn { background:#ff5555; }
   <div class="logo">T</div>
   <div>
     <h1>Tom the AI</h1>
-    <button id="fixerBtn">Tom Fixer — Wen Only</button>
     <div class="muted">Chat with Tom anytime</div>
   </div>
   <div class="controls">
     <label>Dark</label>
     <input id="darkToggle" type="checkbox" />
+    <label>Galaxy</label>
+    <input id="galaxyToggle" type="checkbox" />
   </div>
 </header>
 
-<!-- PERSONAS (Fixer removed) -->
 <div style="margin-bottom:10px;">
   <label for="persona">Select Tom's type:</label>
   <select id="persona">
@@ -120,16 +112,8 @@ const clearBtn = document.getElementById("clearBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
 const errorDiv = document.getElementById("error");
 const darkToggle = document.getElementById("darkToggle");
+const galaxyToggle = document.getElementById("galaxyToggle");
 const personaSelect = document.getElementById("persona");
-
-// ===== Fixer button =====
-const fixerBtn = document.getElementById("fixerBtn");
-fixerBtn.onclick = () => {
-  const pass = prompt("Enter Fixer password:");
-  if (pass === "Code") {
-    window.location.href = "https://math12393.github.io/HTML-HELPER/";
-  }
-};
 
 // ===== Dark mode =====
 const savedTheme = localStorage.getItem("theme") || "light";
@@ -139,6 +123,19 @@ darkToggle.onclick = () => {
   const theme = darkToggle.checked?"dark":"light";
   document.documentElement.setAttribute("data-theme", theme);
   localStorage.setItem("theme", theme);
+};
+
+// ===== Galaxy background toggle =====
+galaxyToggle.checked = localStorage.getItem("galaxy")==="true";
+if(galaxyToggle.checked) document.body.classList.add("galaxy");
+galaxyToggle.onclick = () => {
+  if(galaxyToggle.checked){
+    document.body.classList.add("galaxy");
+    localStorage.setItem("galaxy", "true");
+  } else {
+    document.body.classList.remove("galaxy");
+    localStorage.setItem("galaxy", "false");
+  }
 };
 
 // ===== Chat history =====
@@ -218,7 +215,6 @@ async function sendMessage(){
   const text = msgInput.value.trim();
   if(!text) return;
   const persona = personaSelect.value;
-  const promptPassword = (persona==="fixer") ? prompt("Enter Fixer password:") || "" : "";
 
   addMessageToUI("user",text);
   msgInput.value="";
@@ -238,7 +234,7 @@ async function sendMessage(){
         "X-Parse-REST-API-Key":REST_KEY,
         "Content-Type":"application/json"
       },
-      body: JSON.stringify({ prompt:text, userKey, persona, password: promptPassword })
+      body: JSON.stringify({ prompt:text, userKey, persona, password: "" })
     });
 
     if(!res.ok) throw new Error(`Server error: ${res.status}`);
