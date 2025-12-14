@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -84,7 +85,7 @@ body.galaxy {
     <option value="human">Human Tom</option>
     <option value="coder">Tom the Coder</option>
     <option value="researcher">Tom the Researcher</option>
-    <option value="image">Tom the Image AI (Coming Soon)</option>
+    <option value="image">Tom the Image AI</option>
   </select>
 </div>
 
@@ -172,8 +173,17 @@ function addMessageToUI(from, text, save=true, persona=personaSelect.value){
     b.innerHTML = `<strong>Researcher Tom:</strong><br>${text}`;
   } 
   else if(persona === "image" && from === "ai"){
-    b.innerHTML = `<strong>Image Tom:</strong> COMING SOON`;
-  } 
+  const lines = text.split("\n");
+  const link = lines.find(l => l.startsWith("http"));
+  const descIndex = lines.findIndex(l => l.startsWith("WHAT THE IMAGE"));
+  const desc = descIndex !== -1 ? lines.slice(descIndex + 1).join(" ") : "";
+
+  b.innerHTML = `<strong>Image Tom:</strong><br>
+    <a href="${link}" target="_blank">${link}</a><br><br>
+    <img src="${link}" style="max-width:100%;border-radius:10px;margin-top:6px;"><br><br>
+    <em>${desc}</em>`;
+  }
+
   else {
     b.innerHTML = text;
   }
@@ -241,15 +251,6 @@ async function sendMessage(){
   msgInput.value = "";
   errorDiv.textContent = "";
   showTyping();
-
-  /* Image Tom doesn't use backend */
-  if(persona === "image"){
-    setTimeout(() => {
-      hideTyping();
-      addMessageToUI("ai", "Image persona is coming soon!", true, persona);
-    }, 600);
-    return;
-  }
 
   try{
     const res = await fetch(BACKEND_URL, {
